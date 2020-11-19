@@ -1,6 +1,3 @@
-from typing import Tuple
-
-import torch
 from torch import nn
 
 
@@ -25,9 +22,15 @@ class FullVocabModel(nn.Module):
         self.rnn_dropout = nn.Dropout(rnn_dropout)
         self.linear = nn.Linear(hidden_size, vocab_size)
 
-    def forward(self, text: torch.LongTensor) -> Tuple[torch.Tensor, torch.Tensor]:  # seq_len, batch_size
+        initrange = 0.5 / embedding_dim
+        self.embedding.weight.data.uniform_(-initrange, initrange)
+
+    def forward(self, text, hidden=None):  # seq_len, batch_size
         embedded = self.embed_dropout(self.embedding(text))  # seq_len, batch_size, embedding_dim
-        rnn_output, hidden = self.rnn(embedded)
+        if hidden is None:  # w/o prev
+            rnn_output, hidden = self.rnn(embedded)
+        else:  # w/ prev
+            rnn_output, hidden = self.rnn(embedded, hidden)
         rnn_output = self.rnn_dropout(rnn_output)  # seq_len, batch_size, hidden_size
         fc_output = self.linear(rnn_output)  # seq_len, batch_size, vocab_size
-        return fc_output, hidden
+        return fc_output.view(-1, self.linear.out_features), hidden  # seq_len * batch_size, vocab_size
