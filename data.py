@@ -58,15 +58,17 @@ class BobSueDataset(Dataset):
         prev, text = self.df.iloc[idx]
         prev_encoded = torch.LongTensor([self.vocab.stoi[w] for w in prev.split()])
         text_encoded = torch.LongTensor([self.vocab.stoi[w] for w in text.split()])
+        input_encoded = text_encoded[:-1]
+        target_encoded = text_encoded[1:]
 
         neg_samples = []
         if self.neg_count:
-            for te in text_encoded:
+            for te in target_encoded:
                 freqs = torch.clone(self.freqs)
                 freqs[te] = 0
                 neg_samples.append(torch.multinomial(freqs, self.neg_count, True))
 
-        return text_encoded, prev_encoded, torch.stack(neg_samples) if neg_samples else None
+        return input_encoded, target_encoded, prev_encoded, torch.stack(neg_samples) if neg_samples else None
 
 
 def pad_sequence(sequences: Sequence[torch.Tensor], pad_value: int, pad_left: bool = False) -> torch.Tensor:
@@ -109,11 +111,12 @@ class PadSeqCollate:
         self.pad_idx = pad_idx
 
     def __call__(self, batch: Sequence[Tuple[torch.LongTensor, torch.LongTensor, torch.LongTensor]]):
-        texts, prevs, negs = zip(*batch)
-        batch_texts = pad_sequence(texts, self.pad_idx)
+        inputs, targets, prevs, negs = zip(*batch)
+        batch_inputs = pad_sequence(inputs, self.pad_idx)
+        batch_targets = pad_sequence(targets, self.pad_idx)
         batch_prevs = pad_sequence(prevs, self.pad_idx, pad_left=True)
         batch_negs = pad_sequence(negs, self.pad_idx) if negs[0] is not None else None
-        return batch_texts, batch_prevs, batch_negs
+        return batch_inputs, batch_targets, batch_prevs, batch_negs
 
 
 def get_dataloader(filename: str, vocab: Vocabulary, batch_size: int, neg_count: int = 0, sample_pow: float = 1.,
