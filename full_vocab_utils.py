@@ -9,7 +9,7 @@ import pandas as pd
 from utils import calculate_time
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-loss_fn = nn.CrossEntropyLoss()
+loss_fn = nn.CrossEntropyLoss().to(device)
 
 
 @torch.no_grad()
