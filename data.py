@@ -18,8 +18,8 @@ class Vocabulary:
         """
 
         Args:
-            vocab_fname: Vocabulary filename in DATA_ROOT
-            train_fname: Training data filename in DATA_ROOT
+            vocab_fname: Vocabulary filename in DATA_ROOT.
+            train_fname: Training data filename in DATA_ROOT.
         """
         self.itos = [self.pad_token]
         with open(DATA_ROOT / vocab_fname) as f:
@@ -40,10 +40,10 @@ class BobSueDataset(Dataset):
         """
 
         Args:
-            filename: Dataset filename in DATA_ROOT
-            vocab: Vocabulary
-            neg_count: Number of negative samples for each word
-            sample_pow: Power applied to sample frequency
+            filename: Dataset filename in DATA_ROOT.
+            vocab: Vocabulary.
+            neg_count: Number of negative samples for each word.
+            sample_pow: Power applied to sample frequency.
         """
         super(BobSueDataset, self).__init__()
         self.df = pd.read_csv(DATA_ROOT / filename, sep='\t', header=None)
@@ -69,19 +69,19 @@ class BobSueDataset(Dataset):
         return text_encoded, prev_encoded, torch.stack(neg_samples) if neg_samples else None
 
 
-def pad_sequence(sequences: Sequence[torch.Tensor], pad_value: int, pad_left: bool = False):
+def pad_sequence(sequences: Sequence[torch.Tensor], pad_value: int, pad_left: bool = False) -> torch.Tensor:
     """
     An alternative implementation of torch.nn.utils.rnn.pad_sequence
     with pre-sequence (left) padding feature.
 
     Args:
-        sequences: torch.Tensor with various first dimension
-        pad_value: Padding value
+        sequences: torch.Tensor with various first dimension.
+        pad_value: Padding value.
         pad_left: Pre-sequence (left) padding or post-sequence (right)
             padding. Default: False
 
     Returns:
-
+        torch.Tensor with (padded_len, len(sequences), ...) shape.
     """
     final_len = max([s.shape[0] for s in sequences])
     trailing_dims = sequences[0].shape[1:]
@@ -104,7 +104,7 @@ class PadSeqCollate:
         """
 
         Args:
-            pad_idx: Padding index in vocabulary
+            pad_idx: Padding index in vocabulary.
         """
         self.pad_idx = pad_idx
 
@@ -117,23 +117,23 @@ class PadSeqCollate:
 
 
 def get_dataloader(filename: str, vocab: Vocabulary, batch_size: int, neg_count: int = 0, sample_pow: float = 1.,
-                   shuffle: bool = True, pin_memory: bool = True):
+                   shuffle: bool = True, pin_memory: bool = True) -> DataLoader:
     """
     Wrapper function for creating a DataLoader loading a BobSueDataset.
 
     Args:
-        filename: Dataset filename
-        vocab: Vocabulary
-        batch_size: Batch size
-        neg_count: See BobSueDataset
-        sample_pow: See BobSueDataset
+        filename: Dataset filename.
+        vocab: Vocabulary.
+        batch_size: Batch size.
+        neg_count: See BobSueDataset docs.
+        sample_pow: See BobSueDataset docs.
         shuffle: Whether reshuffle data at each epoch, see DataLoader
             docs. Default: True
         pin_memory: Whether use pinned memory, see DataLoader docs.
             Default: True
 
     Returns:
-        DataLoader
+        DataLoader.
     """
     dataset = BobSueDataset(filename, vocab, neg_count, sample_pow)
     loader = DataLoader(dataset, batch_size=batch_size, collate_fn=PadSeqCollate(vocab.pad_idx),
