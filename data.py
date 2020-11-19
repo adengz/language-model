@@ -36,14 +36,15 @@ class Vocabulary:
 
 class BobSueDataset(Dataset):
 
-    def __init__(self, filename: str, vocab: Vocabulary, neg_count: int = 0, sample_pow: float = 1.):
+    def __init__(self, filename: str, vocab: Vocabulary, neg_count: int = 0, sample_pow: float = 0.):
         """
 
         Args:
             filename: Dataset filename in DATA_ROOT.
             vocab: Vocabulary.
             neg_count: Number of negative samples for each word.
-            sample_pow: Power applied to sample frequency.
+                Default: 0
+            sample_pow: Power applied to sample frequency. Default: 0.
         """
         super(BobSueDataset, self).__init__()
         self.df = pd.read_csv(DATA_ROOT / filename, sep='\t', header=None)
