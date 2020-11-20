@@ -1,7 +1,7 @@
-from typing import Tuple
+import time
 
 
-def count_params(model) -> int:
+def count_params(model):
     """
     Counts trainable parameters in a model.
 
@@ -14,18 +14,24 @@ def count_params(model) -> int:
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
-def calculate_time(start: float, end: float) -> Tuple[float, float]:
+def timeit(f):
     """
-    Calculates elapsed times in minutes and seconds.
+    Timer decorator for profiling.
 
     Args:
-        start: Starting time.
-        end: Ending time.
+        f: Decorated function.
 
     Returns:
-        minutes, seconds.
+        (minutes, seconds), f()
     """
-    elapsed = end - start
-    mins = int(elapsed / 60)
-    secs = int(elapsed - mins * 60)
-    return mins, secs
+    def timed(*args, **kwargs):
+        start = time.time()
+        ret = f(*args, **kwargs)
+        end = time.time()
+
+        elapsed = end - start
+        mins = int(elapsed / 60)
+        secs = elapsed - mins * 60
+
+        return (mins, round(secs, 3)), ret
+    return timed

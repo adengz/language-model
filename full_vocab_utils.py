@@ -1,17 +1,17 @@
 from collections import Counter
-import time
 
 import torch
 from torch import nn
 from sklearn.metrics import accuracy_score
 import pandas as pd
 
-from utils import calculate_time
+from utils import timeit
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 loss_fn = nn.CrossEntropyLoss().to(device)
 
 
+@timeit
 @torch.no_grad()
 def evaluate(model, dataloader, loss_func, read_prev=False):
     model.eval()
@@ -39,6 +39,7 @@ def evaluate(model, dataloader, loss_func, read_prev=False):
     return total_loss / sample_count, total_acc / sample_count, wrong_preds
 
 
+@timeit
 def train_1_epoch(model, dataloader, loss_func, optimizer, read_prev=False):
     model.train()
 
@@ -73,14 +74,18 @@ def train_model(model, filename, train_loader, val_loader, optim, lr=1e-3, epoch
     mistakes = None
 
     for epoch in range(epochs):
-        start = time.time()
-        train_loss, train_acc = train_1_epoch(model, train_loader, loss_fn, optimizer, read_prev=read_prev)
-        val_loss, val_acc, wrong_preds = evaluate(model, val_loader, loss_fn, read_prev=read_prev)
-        end = time.time()
-        mins, secs = calculate_time(start, end)
+        print(f'Epoch: {epoch + 1: 02}')
 
-        print(f'Epoch: {epoch + 1: 02} | Epoch Time: {mins}m {secs}s')
+        train_time, train_metrics = train_1_epoch(model, train_loader, loss_fn, optimizer, read_prev=read_prev)
+        train_mins, train_secs = train_time
+        print(f'\tTrain time: {train_mins}m {train_secs}s')
+        train_loss, train_acc = train_metrics
         print(f'\tTrain Loss: {train_loss: .3f} | Train Acc: {train_acc * 100: .2f}%')
+
+        val_time, val_metrics = evaluate(model, val_loader, loss_fn, read_prev=read_prev)
+        val_mins, val_secs = val_time
+        print(f'\t Val. time: {val_mins}m {val_secs}s')
+        val_loss, val_acc, wrong_preds = val_metrics
         print(f'\t Val. Loss: {val_loss: .3f} |  Val. Acc: {val_acc * 100: .2f}%')
 
         if val_loss < min_val_loss:
