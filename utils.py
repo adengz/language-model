@@ -30,9 +30,7 @@ def timeit(f):
         end = time.time()
 
         elapsed = end - start
-        mins = int(elapsed / 60)
-        secs = elapsed - mins * 60
-        print(f'\tElapsed time: {mins}m {secs: .3f}s')
+        print(f'\t Wall Time: {elapsed: .3f} s')
 
         return ret
     return timed

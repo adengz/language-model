@@ -22,7 +22,7 @@ def loss_fn(neg_embed, hidden, pos_embed):
     pos_contrib = -F.logsigmoid(pos_score).mean()
 
     neg_score = torch.bmm(neg_embed, hidden).squeeze()  # seq_len * batch_size, sample_size
-    neg_contrib = -torch.log(1 - F.sigmoid(neg_score)).mean()
+    neg_contrib = -torch.log(1 - torch.sigmoid(neg_score)).mean()
 
     return pos_contrib + neg_contrib
 

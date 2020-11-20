@@ -67,7 +67,7 @@ def train_1_epoch(model, dataloader, loss_func, optimizer, read_prev=False):
     return total_loss / sample_count, total_acc / sample_count
 
 
-def train_model(model, filename, train_loader, val_loader, optim, lr=1e-3, epochs=10, read_prev=False, show_mistakes=35):
+def train_model(model, filename, train_loader, val_loader, optim, lr=1e-3, epochs=10, read_prev=False):
     model.to(device)
     optimizer = optim(model.parameters(), lr=lr)
     min_val_loss = float('inf')
@@ -88,11 +88,9 @@ def train_model(model, filename, train_loader, val_loader, optim, lr=1e-3, epoch
             torch.save(model.state_dict(), f'{filename}')
             print(f'\tModel parameters saved to {filename}')
 
-    return mistakes.most_common(show_mistakes)
+    return mistakes
 
 
-def show_mistakes(top_mistakes, vocab):
-    df = pd.DataFrame([k + (v,) for k, v in top_mistakes], columns=['prediction', 'ground truth', 'count'])
-    df['prediction'] = df['prediction'].apply(lambda i: vocab.itos[i])
-    df['ground truth'] = df['ground truth'].apply(lambda i: vocab.itos[i])
-    return df
+def show_mistakes(mistakes, vocab, top=35):
+    df = pd.DataFrame([k for k, _ in mistakes.most_common(top)], columns=['prediction', 'ground truth'])
+    return df.applymap(lambda i: vocab.itos[i])
