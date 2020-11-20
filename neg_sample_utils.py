@@ -97,7 +97,7 @@ def train_1_epoch(model, dataloader, optimizer, vocab_tensor):
 def train_model(model, filename, train_loader, val_loader, vocab_size, optim, lr=1e-3, epochs=20):
     model.to(device)
     optimizer = optim(model.parameters(), lr=lr)
-    vocab_tensor = torch.arange(vocab_size)
+    vocab_tensor = torch.arange(vocab_size).to(device)
     min_val_loss = float('inf')
 
     for epoch in range(epochs):
