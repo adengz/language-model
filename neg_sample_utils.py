@@ -1,5 +1,12 @@
+import time
+
 import torch
 import torch.nn.functional as F
+from sklearn.metrics import accuracy_score
+
+from utils import calculate_time
+
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
 def loss_fn(neg_embed, hidden, pos_embed):
@@ -37,3 +44,74 @@ def get_predictions(vocab_embed, hidden):
     # seq_len * batch_size, vocab_size, embedding_dim
     score = torch.bmm(vocab_embed, hidden).squeeze()  # seq_len * batch_size, vocab_size
     return score.argmax(1)
+
+
+@torch.no_grad()
+def evaluate(model, dataloader, vocab_tensor):
+    model.eval()
+
+    total_loss = total_acc = sample_count = 0
+    for inputs, targets, _, neg_samples in dataloader:
+        inputs, targets, neg_samples = inputs.to(device), targets.to(device), neg_samples.to(device)
+
+        neg_embed, hidden, pos_embed = model(neg_samples, inputs, targets)
+        loss = loss_fn(neg_embed, hidden, pos_embed)
+        vocab_embed = model(vocab_tensor)[0]
+        preds = get_predictions(vocab_embed, hidden).cpu()
+        acc = accuracy_score(preds, targets.view(-1).cpu())
+
+        count = preds.shape[0]
+        sample_count += count
+        total_loss += loss.item() * count
+        total_acc += acc * count
+
+    model.train()
+    return total_loss / sample_count, total_acc / sample_count
+
+
+def train_1_epoch(model, dataloader, optimizer, vocab_tensor):
+    model.train()
+
+    total_loss = total_acc = sample_count = 0
+    for inputs, targets, _, neg_samples in dataloader:
+        inputs, targets, neg_samples = inputs.to(device), targets.to(device), neg_samples.to(device)
+        optimizer.zero_grad()
+
+        neg_embed, hidden, pos_embed = model(neg_samples, inputs, targets)
+        loss = loss_fn(neg_embed, hidden, pos_embed)
+        vocab_embed = model(vocab_tensor)[0]
+        preds = get_predictions(vocab_embed, hidden).cpu()
+        acc = accuracy_score(preds, targets.view(-1).cpu())
+
+        loss.backward()
+        optimizer.step()
+
+        count = preds.shape[0]
+        sample_count += count
+        total_loss += loss.item() * count
+        total_acc += acc * count
+
+    return total_loss / sample_count, total_acc / sample_count
+
+
+def train_model(model, filename, train_loader, val_loader, vocab_size, optim, lr=1e-3, epochs=20):
+    model.to(device)
+    optimizer = optim(model.parameters(), lr=lr)
+    vocab_tensor = torch.arange(vocab_size)
+    min_val_loss = float('inf')
+
+    for epoch in range(epochs):
+        start = time.time()
+        train_loss, train_acc = train_1_epoch(model, train_loader, optimizer, vocab_tensor)
+        val_loss, val_acc = evaluate(model, val_loader, vocab_tensor)
+        end = time.time()
+        mins, secs = calculate_time(start, end)
+
+        print(f'Epoch: {epoch + 1: 02} | Epoch Time: {mins}m {secs}s')
+        print(f'\tTrain Loss: {train_loss: .3f} | Train Acc: {train_acc * 100: .2f}%')
+        print(f'\t Val. Loss: {val_loss: .3f} |  Val. Acc: {val_acc * 100: .2f}%')
+
+        if val_loss < min_val_loss:
+            min_val_loss = val_loss
+            torch.save(model.state_dict(), f'{filename}')
+            print(f'\tModel parameters saved to {filename}')
