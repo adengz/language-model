@@ -76,16 +76,10 @@ def train_model(model, filename, train_loader, val_loader, optim, lr=1e-3, epoch
     for epoch in range(epochs):
         print(f'Epoch: {epoch + 1: 02}')
 
-        train_time, train_metrics = train_1_epoch(model, train_loader, loss_fn, optimizer, read_prev=read_prev)
-        train_mins, train_secs = train_time
-        print(f'\tTrain time: {train_mins}m {train_secs}s')
-        train_loss, train_acc = train_metrics
+        train_loss, train_acc = train_1_epoch(model, train_loader, loss_fn, optimizer, read_prev=read_prev)
         print(f'\tTrain Loss: {train_loss: .3f} | Train Acc: {train_acc * 100: .2f}%')
 
-        val_time, val_metrics = evaluate(model, val_loader, loss_fn, read_prev=read_prev)
-        val_mins, val_secs = val_time
-        print(f'\t Val. time: {val_mins}m {val_secs}s')
-        val_loss, val_acc, wrong_preds = val_metrics
+        val_loss, val_acc, wrong_preds = evaluate(model, val_loader, loss_fn, read_prev=read_prev)
         print(f'\t Val. Loss: {val_loss: .3f} |  Val. Acc: {val_acc * 100: .2f}%')
 
         if val_loss < min_val_loss:

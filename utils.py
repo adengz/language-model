@@ -32,6 +32,7 @@ def timeit(f):
         elapsed = end - start
         mins = int(elapsed / 60)
         secs = elapsed - mins * 60
+        print(f'\tElapsed time: {mins}m {secs: .3f}s')
 
-        return (mins, round(secs, 3)), ret
+        return ret
     return timed
