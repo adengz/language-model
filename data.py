@@ -28,7 +28,7 @@ class Vocabulary:
 
         with open(DATA_ROOT / train_fname) as f:
             counter = Counter(f.read().replace('\n', ' ').split(' '))
-        self.counts = [0] + [counter[w] for w in self.itos]
+        self.counts = [0] + [counter[w] for w in self.itos[1:]]
     
     def __len__(self):
         return len(self.itos)
@@ -120,7 +120,7 @@ class PadSeqCollate:
         return batch_inputs, batch_targets, batch_prevs, batch_negs
 
 
-def get_dataloader(filename: str, vocab: Vocabulary, batch_size: int, neg_count: int = 0, sample_pow: float = 1.,
+def get_dataloader(filename: str, vocab: Vocabulary, batch_size: int, neg_count: int = 0, sample_pow: float = 0.,
                    shuffle: bool = True, pin_memory: bool = True) -> DataLoader:
     """
     Wrapper function for creating a DataLoader loading a BobSueDataset.
