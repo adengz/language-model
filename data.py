@@ -44,7 +44,7 @@ class BobSueDataset(Dataset):
             vocab: Vocabulary.
             neg_count: Number of negative samples for each word.
                 Default: 0
-            sample_pow: Power applied to sample frequency. Default: 0.
+            sample_pow: Power applied to occurrence. Default: 0
         """
         super(BobSueDataset, self).__init__()
         self.df = pd.read_csv(DATA_ROOT / filename, sep='\t', header=None)
@@ -111,7 +111,7 @@ class PadSeqCollate:
         """
         self.pad_idx = pad_idx
 
-    def __call__(self, batch: Sequence[Tuple[torch.LongTensor, torch.LongTensor, torch.LongTensor]]):
+    def __call__(self, batch: Sequence[Tuple[torch.LongTensor, torch.LongTensor, torch.LongTensor, torch.LongTensor]]):
         inputs, targets, prevs, negs = zip(*batch)
         batch_inputs = pad_sequence(inputs, self.pad_idx)
         batch_targets = pad_sequence(targets, self.pad_idx)
@@ -126,7 +126,7 @@ def get_dataloader(filename: str, vocab: Vocabulary, batch_size: int, neg_count:
     Wrapper function for creating a DataLoader loading a BobSueDataset.
 
     Args:
-        filename: Dataset filename.
+        filename: Dataset filename in DATA_ROOT.
         vocab: Vocabulary.
         batch_size: Batch size.
         neg_count: See BobSueDataset docs.

@@ -22,7 +22,7 @@ def timeit(f):
         f: Decorated function.
 
     Returns:
-        (minutes, seconds), f()
+        Whatever returned by invoking f.
     """
     def timed(*args, **kwargs):
         start = time.time()
