@@ -124,7 +124,7 @@ def get_metrics(model: nn.Module,
     else:
         raise NotImplementedError
 
-    y = torch.vstack([prediction, targets.view(-1)])  # 2, seq_len * batch_size
+    y = torch.vstack([prediction, targets.view(-1)]).cpu()  # 2, seq_len * batch_size
     y = y[:, torch.where(y[1, :] != pad_idx)[0]]  # 2, filtered_non_pads
     acc = accuracy_score(y[0], y[1])
     counter = None
