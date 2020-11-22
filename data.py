@@ -77,7 +77,7 @@ class BobSueDataset(Dataset):
             for te in target_encoded:
                 freqs = torch.clone(self.freqs)
                 freqs[te] = 0
-                neg_samples.append(torch.multinomial(freqs, self.neg_count, True))
+                neg_samples.append(torch.multinomial(freqs, self.neg_count, True).tolist())
 
         return input_encoded, target_encoded, prev_encoded, torch.LongTensor(neg_samples)
 
