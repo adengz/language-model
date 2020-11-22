@@ -10,7 +10,6 @@ DATA_ROOT = Path('data')
 
 
 class Vocabulary:
-
     pad_token = '<pad>'
     pad_idx = 0
 
@@ -29,8 +28,8 @@ class Vocabulary:
         with open(DATA_ROOT / train_fname) as f:
             counter = Counter(f.read().replace('\n', ' ').split(' '))
         self.counts = [0] + [counter[w] for w in self.itos[1:]]
-    
-    def __len__(self):
+
+    def __len__(self) -> int:
         return len(self.itos)
 
 
@@ -52,10 +51,21 @@ class BobSueDataset(Dataset):
         self.neg_count = neg_count
         self.freqs = torch.Tensor(vocab.counts) ** sample_pow
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.df)
 
-    def __getitem__(self, idx: int):
+    def __getitem__(self, idx: int) -> Tuple[torch.LongTensor, torch.LongTensor, torch.LongTensor, torch.LongTensor]:
+        """
+
+        Args:
+            idx: Index.
+
+        Returns:
+            input_encoded: seq_len - 1
+            target_encoded: seq_len - 1
+            prev_encoded: prev_len
+            neg_samples: seq_len - 1, neg_count
+        """
         prev, text = self.df.iloc[idx]
         prev_encoded = torch.LongTensor([self.vocab.stoi[w] for w in prev.split()])
         text_encoded = torch.LongTensor([self.vocab.stoi[w] for w in text.split()])
@@ -69,36 +79,7 @@ class BobSueDataset(Dataset):
                 freqs[te] = 0
                 neg_samples.append(torch.multinomial(freqs, self.neg_count, True))
 
-        return input_encoded, target_encoded, prev_encoded, torch.stack(neg_samples) if neg_samples else None
-
-
-def pad_sequence(sequences: Sequence[torch.Tensor], pad_value: int, pad_left: bool = False) -> torch.Tensor:
-    """
-    An alternative implementation of torch.nn.utils.rnn.pad_sequence
-    with pre-sequence (left) padding feature.
-
-    Args:
-        sequences: torch.Tensor with various first dimension.
-        pad_value: Padding value.
-        pad_left: Pre-sequence (left) padding or post-sequence (right)
-            padding. Default: False
-
-    Returns:
-        torch.Tensor with (padded_len, len(sequences), ...) shape.
-    """
-    final_len = max([s.shape[0] for s in sequences])
-    trailing_dims = sequences[0].shape[1:]
-    out_dims = (final_len, len(sequences)) + trailing_dims
-    out_tensor = sequences[0].new_full(out_dims, pad_value)
-
-    for i, tensor in enumerate(sequences):
-        length = tensor.shape[0]
-        if pad_left:
-            out_tensor[-length:, i, ...] = tensor
-        else:
-            out_tensor[:length, i, ...] = tensor
-
-    return out_tensor
+        return input_encoded, target_encoded, prev_encoded, torch.LongTensor(neg_samples)
 
 
 class PadSeqCollate:
@@ -111,13 +92,37 @@ class PadSeqCollate:
         """
         self.pad_idx = pad_idx
 
-    def __call__(self, batch: Sequence[Tuple[torch.LongTensor, torch.LongTensor, torch.LongTensor, torch.LongTensor]]):
+    def __call__(self, batch: Sequence[Tuple[torch.LongTensor, torch.LongTensor, torch.LongTensor, torch.LongTensor]]) \
+            -> Tuple[torch.LongTensor, torch.LongTensor, torch.LongTensor, torch.LongTensor]:
         inputs, targets, prevs, negs = zip(*batch)
-        batch_inputs = pad_sequence(inputs, self.pad_idx)
-        batch_targets = pad_sequence(targets, self.pad_idx)
-        batch_prevs = pad_sequence(prevs, self.pad_idx, pad_left=True)
-        batch_negs = pad_sequence(negs, self.pad_idx) if negs[0] is not None else None
-        return batch_inputs, batch_targets, batch_prevs, batch_negs
+        return self.pad_sequence(inputs), self.pad_sequence(targets), \
+               self.pad_sequence(prevs, pad_left=True), self.pad_sequence(negs)
+
+    def pad_sequence(self, sequences: Sequence[torch.LongTensor], pad_left: bool = False) -> torch.LongTensor:
+        """
+        Pads sequences to the same length with pad_idx.
+
+        Args:
+            sequences: torch.LongTensor with various first dimension.
+            pad_left: Whether use pre-sequence (left) padding or
+                post-sequence padding (right). Default: False
+
+        Returns:
+            len(sequences), max_seq_len
+        """
+        final_len = max([s.shape[0] for s in sequences])
+        trailing_dims = sequences[0].shape[1:]
+        out_dims = (final_len, len(sequences)) + trailing_dims
+        out_tensor = sequences[0].new_full(out_dims, self.pad_idx)
+
+        for i, tensor in enumerate(sequences):
+            length = tensor.shape[0]
+            if pad_left:
+                out_tensor[-length:, i, ...] = tensor
+            else:
+                out_tensor[:length, i, ...] = tensor
+
+        return out_tensor
 
 
 def get_dataloader(filename: str, vocab: Vocabulary, batch_size: int, neg_count: int = 0, sample_pow: float = 0.,
