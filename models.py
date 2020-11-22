@@ -1,3 +1,6 @@
+from typing import Tuple
+
+import torch
 from torch import nn
 
 
@@ -28,7 +31,8 @@ class FullVocabModel(nn.Module):
         self.embedding.weight.data.uniform_(-initrange, initrange)
         self.embedding.weight.data[padding_idx].zero_()
 
-    def forward(self, text, hidden=None):
+    def forward(self, text: torch.Tensor, hidden: Tuple[torch.Tensor, torch.Tensor] = None) \
+            -> Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         """
 
         Args:
@@ -79,7 +83,8 @@ class NegSampleModel(nn.Module):
         self.out_embed.weight.data.uniform_(-initrange, initrange)
         self.out_embed.weight.data[padding_idx].zero_()
 
-    def forward(self, samples, text=None, targets=None):
+    def forward(self, samples: torch.Tensor, text: torch.Tensor = None, targets: torch.Tensor = None) \
+            -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
 
         Args:
