@@ -26,6 +26,7 @@ class FullVocabModel(nn.Module):
 
         initrange = 0.5 / embedding_dim
         self.embedding.weight.data.uniform_(-initrange, initrange)
+        self.embedding.weight.data[padding_idx].zero_()
 
     def forward(self, text, hidden=None):
         """
@@ -74,7 +75,9 @@ class NegSampleModel(nn.Module):
 
         initrange = 0.5 / embedding_dim
         self.in_embed.weight.data.uniform_(-initrange, initrange)
+        self.in_embed.weight.data[padding_idx].zero_()
         self.out_embed.weight.data.uniform_(-initrange, initrange)
+        self.out_embed.weight.data[padding_idx].zero_()
 
     def forward(self, samples, text=None, targets=None):
         """
