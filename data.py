@@ -1,15 +1,17 @@
 from pathlib import Path
 from collections import Counter
-from typing import Sequence, Tuple
+from functools import partial
+from typing import List, Tuple, Dict
 
 import torch
 from torch.utils.data import Dataset, DataLoader
-import pandas as pd
+from torch.nn.utils.rnn import pad_sequence
 
 DATA_ROOT = Path('data')
 
 
 class Vocabulary:
+
     pad_token = '<pad>'
     pad_idx = 0
 
@@ -32,27 +34,65 @@ class Vocabulary:
     def __len__(self) -> int:
         return len(self.itos)
 
+    def tokenize(self, sentence: str) -> List[int]:
+        """
+        Tokenize input sentence.
+
+        Args:
+            sentence: Input sentence
+
+        Returns:
+            List of tokens representing sentence.
+        """
+        return [self.stoi[w] for w in sentence.split(' ')]
+
 
 class BobSueDataset(Dataset):
 
-    def __init__(self, filename: str, vocab: Vocabulary, neg_count: int = 0, sample_pow: float = 0.):
+    def __init__(self, filename: str, vocab: Vocabulary):
         """
 
         Args:
             filename: Dataset filename in DATA_ROOT.
             vocab: Vocabulary.
-            neg_count: Number of negative samples for each word.
-                Default: 0
-            sample_pow: Power applied to occurrence. Default: 0
         """
-        super(BobSueDataset, self).__init__()
-        self.df = pd.read_csv(DATA_ROOT / filename, sep='\t', header=None)
-        self.vocab = vocab
-        self.neg_count = neg_count
-        self.freqs = torch.Tensor(vocab.counts) ** sample_pow
+        self.text_encodings, self.context_encodings = [], []
+        with open(DATA_ROOT / filename) as f:
+            for line in f:
+                context, text = line.rstrip('\n').split('\t')
+                self.text_encodings.append(vocab.tokenize(text))
+                self.context_encodings.append(vocab.tokenize(context))
+        self.freqs = torch.Tensor(vocab.counts)
+        self._neg_count = 0
+        self._sample_pow = 0.
+
+    @property
+    def neg_count(self) -> int:
+        """
+        Number of negative samples for each word. Default: 0
+        """
+        return self._neg_count
+
+    @neg_count.setter
+    def neg_count(self, neg_count: int):
+        if neg_count < 0:
+            raise ValueError('Expecting negative sample count greater than or equal to 0.')
+        self._neg_count = neg_count
+
+    @property
+    def sample_pow(self) -> float:
+        """
+        Power applied to occurrence when performing sampling.
+            Default: 0.
+        """
+        return self._sample_pow
+
+    @sample_pow.setter
+    def sample_pow(self, sample_pow: float):
+        self._sample_pow = sample_pow
 
     def __len__(self) -> int:
-        return len(self.df)
+        return len(self.text_encodings)
 
     def __getitem__(self, idx: int) -> Tuple[torch.LongTensor, torch.LongTensor, torch.LongTensor, torch.LongTensor]:
         """
@@ -63,79 +103,54 @@ class BobSueDataset(Dataset):
         Returns:
             input_encoded: seq_len - 1
             target_encoded: seq_len - 1
-            prev_encoded: prev_len
+            context_encoded: ctx_len
             neg_samples: seq_len - 1, neg_count
         """
-        prev, text = self.df.iloc[idx]
-        prev_encoded = torch.LongTensor([self.vocab.stoi[w] for w in prev.split()])
-        text_encoded = torch.LongTensor([self.vocab.stoi[w] for w in text.split()])
-        input_encoded = text_encoded[:-1]
-        target_encoded = text_encoded[1:]
+        text_encoded = self.text_encodings[idx]
+        input_encoded = torch.LongTensor(text_encoded[:-1])
+        target_encoded = torch.LongTensor(text_encoded[1:])
+        context_encoded = torch.LongTensor(self.context_encodings[idx])
 
         neg_samples = []
         if self.neg_count:
             for te in target_encoded:
-                freqs = torch.clone(self.freqs)
+                freqs = self.freqs ** self.sample_pow
                 freqs[te] = 0
-                neg_samples.append(torch.multinomial(freqs, self.neg_count, True).tolist())
+                neg_samples.append(torch.multinomial(freqs, self.neg_count, replacement=True).tolist())
 
-        return input_encoded, target_encoded, prev_encoded, torch.LongTensor(neg_samples)
-
-
-class PadSeqCollate:
-
-    def __init__(self, pad_idx: int):
-        """
-
-        Args:
-            pad_idx: Padding index in vocabulary.
-        """
-        self.pad_idx = pad_idx
-
-    def __call__(self, batch: Sequence[Tuple[torch.LongTensor, torch.LongTensor, torch.LongTensor, torch.LongTensor]]) \
-            -> Tuple[torch.LongTensor, torch.LongTensor, torch.LongTensor, torch.LongTensor]:
-        inputs, targets, prevs, negs = zip(*batch)
-        return self.pad_sequence(inputs), self.pad_sequence(targets), \
-               self.pad_sequence(prevs, pad_left=True), self.pad_sequence(negs)
-
-    def pad_sequence(self, sequences: Sequence[torch.LongTensor], pad_left: bool = False) -> torch.LongTensor:
-        """
-        Pads sequences to the same length with pad_idx.
-
-        Args:
-            sequences: torch.LongTensor with various first dimension.
-            pad_left: Whether use pre-sequence (left) padding or
-                post-sequence padding (right). Default: False
-
-        Returns:
-            len(sequences), max_seq_len
-        """
-        final_len = max([s.shape[0] for s in sequences])
-        trailing_dims = sequences[0].shape[1:]
-        out_dims = (final_len, len(sequences)) + trailing_dims
-        out_tensor = sequences[0].new_full(out_dims, self.pad_idx)
-
-        for i, tensor in enumerate(sequences):
-            length = tensor.shape[0]
-            if pad_left:
-                out_tensor[-length:, i, ...] = tensor
-            else:
-                out_tensor[:length, i, ...] = tensor
-
-        return out_tensor
+        return input_encoded, target_encoded, context_encoded, torch.LongTensor(neg_samples)
 
 
-def get_dataloader(filename: str, vocab: Vocabulary, batch_size: int, neg_count: int = 0, sample_pow: float = 0.,
-                   shuffle: bool = True, pin_memory: bool = True) -> DataLoader:
+pad_zeros = partial(pad_sequence, batch_first=True, padding_value=0)
+
+
+def padding_collate(batch: List[Tuple[torch.LongTensor, torch.LongTensor, torch.LongTensor, torch.LongTensor]]) \
+        -> Dict[str, torch.LongTensor]:
+    """
+    Collate function bridging BobSueDataset and all models.
+
+    Args:
+        batch: Batch of data from BobSueDataset.
+
+    Returns:
+        Dict with padded tensors as values.
+    """
+    input_encoded, target_encoded, context_encoded, neg_samples = zip(*batch)
+    input_lengths = [len(ie) for ie in input_encoded]
+    context_lengths = [len(ce) for ce in context_encoded]
+    return {'input_encoded': pad_zeros(input_encoded), 'target_encoded': pad_zeros(target_encoded),
+            'input_lengths': torch.LongTensor(input_lengths), 'context_encoded': pad_zeros(context_encoded),
+            'context_lengths': torch.LongTensor(context_lengths), 'neg_samples': pad_zeros(neg_samples)}
+
+
+def get_dataloader(dataset: BobSueDataset, batch_size: int, shuffle: bool = True, pin_memory: bool = True) \
+        -> DataLoader:
     """
     Wrapper function for creating a DataLoader loading a BobSueDataset.
 
     Args:
-        filename: Dataset filename in DATA_ROOT.
-        vocab: Vocabulary.
+        dataset: BobSueDataset.
         batch_size: Batch size.
-        neg_count: See BobSueDataset docs.
-        sample_pow: See BobSueDataset docs.
         shuffle: Whether reshuffle data at each epoch, see DataLoader
             docs. Default: True
         pin_memory: Whether use pinned memory, see DataLoader docs.
@@ -144,7 +159,5 @@ def get_dataloader(filename: str, vocab: Vocabulary, batch_size: int, neg_count:
     Returns:
         DataLoader.
     """
-    dataset = BobSueDataset(filename, vocab, neg_count, sample_pow)
-    loader = DataLoader(dataset, batch_size=batch_size, collate_fn=PadSeqCollate(vocab.pad_idx),
-                        shuffle=shuffle, pin_memory=pin_memory)
-    return loader
+    return DataLoader(dataset, batch_size=batch_size, collate_fn=padding_collate,
+                      shuffle=shuffle, pin_memory=pin_memory)
