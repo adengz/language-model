@@ -49,7 +49,8 @@ class LanguageModelLearner:
             Loss, accuracy, batch count, mismatch counter (optional)
         """
         for k in batch:
-            batch[k] = batch[k].to(self.device)
+            if not k.endswith('_lengths'):
+                batch[k] = batch[k].to(self.device)
 
         loss, predictions, ground_truth = self.model(**batch)
         mask = predictions == ground_truth  # batch_count
