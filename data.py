@@ -51,6 +51,7 @@ class BobSueDataset(Dataset):
 
     def __init__(self, filename: str, vocab: Vocabulary):
         """
+        Language modeling dataset.
 
         Args:
             filename: Dataset filename in DATA_ROOT.

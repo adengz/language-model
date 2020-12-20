@@ -77,7 +77,7 @@ class FullVocabularyModel(nn.Module):
             kwargs: Unused kwargs from DataLoader.
 
         Returns:
-            Output with loss, filtered predictions and ground_truth
+            Output with loss, filtered predictions and ground truth
         """
         hidden = None
         if self.read_context:
@@ -93,6 +93,7 @@ class FullVocabularyModel(nn.Module):
         mask = input_encoded != self.pad_idx
         ground_truth = target_encoded.masked_select(mask)
         predictions = fc_output.argmax(dim=-1).masked_select(mask)
+
         return Output(loss, predictions, ground_truth)
 
 
@@ -136,7 +137,7 @@ class NegativeSamplingModel(nn.Module):
             kwargs: Unused kwargs from DataLoader.
 
         Returns:
-            Output with loss, filtered predictions and ground_truth
+            Output with loss, filtered predictions and ground truth
         """
         input_embedded = self.embed_dropout(self.in_embedding(input_encoded))  # batch_size, pad_len, embedding_dim
         hidden = _feed_rnn(self.rnn, input_embedded, input_lengths)[0]  # batch_size, pad_len, embedding_dim

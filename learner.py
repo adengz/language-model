@@ -123,7 +123,7 @@ class LanguageModelLearner:
 
         return sum_loss / total_count, sum_acc / total_count
 
-    def train(self, epochs: int, filename: str, return_mismatches: bool = False) -> Counter:
+    def train(self, epochs: int, filename: str, return_mismatches: bool = False) -> Optional[Counter]:
         """
         Trains model by multiple epochs and saves the parameters of
         the model with the lowest validation loss.
